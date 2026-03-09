@@ -17,6 +17,13 @@ class MainActivity : AppCompatActivity() {
         setupImmersiveMode()
 
         setContentView(R.layout.activity_main)
+
+        // Carrega o Fragmento de Login no palco principal assim que o app abrir
+        if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, LoginFragment())
+                .commit()
+        }
     }
 
     private fun setupImmersiveMode() {
