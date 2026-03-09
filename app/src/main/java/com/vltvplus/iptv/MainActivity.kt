@@ -16,7 +16,7 @@ class MainActivity : AppCompatActivity() {
 
         setupImmersiveMode()
 
-        // setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_main)
     }
 
     private fun setupImmersiveMode() {
