@@ -49,17 +49,17 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val btnSeries = view.findViewById<Button>(R.id.btnSeries)
 
         btnLive.setOnClickListener {
-            // No futuro: replaceFragment(LiveFragment())
-            Toast.makeText(context, "Abrindo TV ao Vivo...", Toast.LENGTH_SHORT).show()
+            // Este botão ainda mostra a mensagem porque o arquivo LiveFragment.kt ainda não foi criado.
+            Toast.makeText(context, "Aguardando criação da tela de TV Ao Vivo...", Toast.LENGTH_SHORT).show()
         }
 
         btnMovies.setOnClickListener {
-            // Abre a tela real de Filmes
+            // Abre a tela real de Filmes que já geramos anteriormente
             replaceFragment(MoviesFragment())
         }
 
         btnSeries.setOnClickListener {
-            // Abre a tela real de Séries
+            // Abre a tela real de Séries que já geramos anteriormente
             replaceFragment(SeriesFragment())
         }
     }
@@ -75,52 +75,63 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         mainAdapter = ArrayObjectAdapter(presenterSelector)
         rowsSupportFragment.adapter = mainAdapter
 
-        // Carrega o conteúdo misto para a Home (Filmes e Séries)
+        // Inicia o motor de busca contínua na Home
         loadHomeContent()
     }
 
     private fun loadHomeContent() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val db = AppDatabase.getDatabase(requireContext())
-            
-            // Busca os dados reais salvos no Login
-            val savedMovies = db.movieDao().getMoviesByCategory("0").take(15)
-            val savedSeries = db.seriesDao().getAllSeries().take(15)
+            try {
+                val db = AppDatabase.getDatabase(requireContext())
+                
+                // Busca os dados reais salvos no Login
+                val savedMovies = db.movieDao().getMoviesByCategory("0").take(15)
+                val savedSeries = db.seriesDao().getAllSeries().take(15)
 
-            withContext(Dispatchers.Main) {
-                // 1. Cria o Trilho de Filmes
-                if (savedMovies.isNotEmpty()) {
-                    val movieAdapter = ArrayObjectAdapter(CardPresenter())
-                    mainAdapter.add(ListRow(HeaderItem("Filmes Recomendados"), movieAdapter))
-                    
-                    savedMovies.forEach { entity ->
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val logo = fetchLogoFromTMDB(entity.name, "movie")
-                            withContext(Dispatchers.Main) {
-                                movieAdapter.add(Movie(entity.name, logo))
+                withContext(Dispatchers.Main) {
+                    // Limpa o adapter antes de adicionar para não duplicar listas
+                    mainAdapter.clear()
+
+                    // 1. Cria o Trilho de Filmes se o motor já baixou algo
+                    if (savedMovies.isNotEmpty()) {
+                        val movieAdapter = ArrayObjectAdapter(CardPresenter())
+                        mainAdapter.add(ListRow(HeaderItem("Filmes Recomendados"), movieAdapter))
+                        
+                        savedMovies.forEach { entity ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val logo = fetchLogoFromTMDB(entity.name, "movie")
+                                withContext(Dispatchers.Main) {
+                                    movieAdapter.add(Movie(entity.name, logo))
+                                }
                             }
                         }
                     }
-                }
 
-                // 2. Cria o Trilho de Séries
-                if (savedSeries.isNotEmpty()) {
-                    val seriesAdapter = ArrayObjectAdapter(CardPresenter())
-                    mainAdapter.add(ListRow(HeaderItem("Séries em Destaque"), seriesAdapter))
-                    
-                    savedSeries.forEach { entity ->
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val logo = fetchLogoFromTMDB(entity.name, "tv")
-                            withContext(Dispatchers.Main) {
-                                seriesAdapter.add(Movie(entity.name, logo))
+                    // 2. Cria o Trilho de Séries se o motor já baixou algo
+                    if (savedSeries.isNotEmpty()) {
+                        val seriesAdapter = ArrayObjectAdapter(CardPresenter())
+                        mainAdapter.add(ListRow(HeaderItem("Séries em Destaque"), seriesAdapter))
+                        
+                        savedSeries.forEach { entity ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val logo = fetchLogoFromTMDB(entity.name, "tv")
+                                withContext(Dispatchers.Main) {
+                                    seriesAdapter.add(Movie(entity.name, logo))
+                                }
                             }
                         }
                     }
-                }
 
-                // Se ainda estiver tudo vazio, tenta novamente em breve (banco sendo populado)
-                if (savedMovies.isEmpty() && savedSeries.isEmpty()) {
-                    view?.postDelayed({ loadHomeContent() }, 2000)
+                    // 3. O Gatilho de Auto-Atualização:
+                    // Se o banco ainda estiver vazio (motor baixando), tenta de novo em 3 segundos
+                    if (savedMovies.isEmpty() && savedSeries.isEmpty()) {
+                        view?.postDelayed({ loadHomeContent() }, 3000)
+                    }
+                }
+            } catch (e: Exception) {
+                // Se der erro no banco enquanto ele está sendo criado, aguarda e tenta de novo
+                withContext(Dispatchers.Main) {
+                    view?.postDelayed({ loadHomeContent() }, 3000)
                 }
             }
         }
@@ -158,7 +169,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         parentFragmentManager.beginTransaction()
             .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
             .replace(R.id.fragmentContainer, fragment)
-            .addToBackStack(null) // Permite voltar para a Home ao apertar "Back"
+            .addToBackStack(null) // Permite voltar para a Home ao apertar "Back" no controle
             .commit()
     }
 }
