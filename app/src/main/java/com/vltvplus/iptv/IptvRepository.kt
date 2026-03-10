@@ -19,16 +19,15 @@ class IptvRepository(private val context: Context) {
     // FUNÇÃO PRINCIPAL: Sincroniza Canais, Filmes e Séries usando o DNS escolhido no Login
     suspend fun sincronizarConteudoTotal(dns: String, user: String, pass: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Se o banco já tem VODs salvos, libera a entrada imediata para o app ser rápido
+            // Se o banco já tem VODs salvos, libera a entrada imediata
             val temDados = streamDao.getVodCount() > 0
             
             if (temDados) {
-                // Atualiza o resto em background sem travar o usuário
                 launch { atualizarTudo(dns, user, pass) }
                 return@withContext true
             }
 
-            // Carga prioritária simultânea (baixa os 100 primeiros de cada seção para popular a Home rápido)
+            // Carga prioritária simultânea (100 primeiros itens de cada seção)
             val jobs = listOf(
                 async { sincronizarLive(dns, user, pass, priority = true) },
                 async { sincronizarFilmes(dns, user, pass, priority = true) },
@@ -38,7 +37,6 @@ class IptvRepository(private val context: Context) {
             val sucessoInicial = jobs.awaitAll().all { it }
 
             if (sucessoInicial) {
-                // Após o sucesso inicial, continua baixando o acervo completo em background
                 launch { atualizarTudo(dns, user, pass) }
             }
 
@@ -70,7 +68,7 @@ class IptvRepository(private val context: Context) {
                     category_id = it.category_id ?: "0"
                 )
             }
-            if (!priority) streamDao.clearLive() // Limpa apenas na carga completa para atualizar
+            if (!priority) streamDao.clearLive()
             streamDao.insertLiveStreams(entities)
             true
         } catch (e: Exception) { false }
@@ -107,12 +105,13 @@ class IptvRepository(private val context: Context) {
             val list = if (priority) data.take(100) else data
             val entities = list.map { 
                 SeriesEntity(
-                    series_id = it.series_id.toInt(),
-                    name = it.name,
+                    series_id = it.series_id?.toInt() ?: it.series_id_alt?.toInt() ?: 0,
+                    name = it.name ?: "",
                     cover = it.cover,
                     rating = it.rating,
                     category_id = it.category_id ?: "0",
-                    last_modified = it.last_modified?.toLongOrNull() ?: 0L
+                    last_modified = it.last_modified?.toLongOrNull() ?: 0L,
+                    logo_url = it.cover
                 )
             }
             streamDao.insertSeriesStreams(entities)
@@ -120,7 +119,6 @@ class IptvRepository(private val context: Context) {
         } catch (e: Exception) { false }
     }
 
-    // Função utilitária para buscar dados com suporte a compressão GZIP (essencial para listas grandes)
     private suspend inline fun <reified T> fetchData(url: String): T? {
         return try {
             val request = Request.Builder().url(url).addHeader("Accept-Encoding", "gzip").build()
@@ -136,7 +134,31 @@ class IptvRepository(private val context: Context) {
     }
 }
 
-// Data classes de mapeamento para o GSON (Refletem os campos exatos do seu JSON)
-data class IptvLive(val stream_id: String, val name: String, val stream_icon: String?, val epg_channel_id: String?, val category_id: String?)
-data class IptvMovie(val stream_id: String, val name: String, val stream_icon: String?, val container_extension: String?, val rating: String?, val category_id: String?, val added: String?)
-data class IptvSeries(val stream_id: String, val series_id: String, val name: String, val cover: String?, val rating: String?, val category_id: String?, val last_modified: String?)
+// Modelos de resposta da API para evitar Redeclaração em outros arquivos
+data class IptvLive(
+    val stream_id: String, 
+    val name: String, 
+    val stream_icon: String?, 
+    val epg_channel_id: String?, 
+    val category_id: String?
+)
+
+data class IptvMovie(
+    val stream_id: String, 
+    val name: String, 
+    val stream_icon: String?, 
+    val container_extension: String?, 
+    val rating: String?, 
+    val category_id: String?, 
+    val added: String?
+)
+
+data class IptvSeries(
+    val series_id: String?, 
+    @com.google.gson.annotations.SerializedName("series_id") val series_id_alt: String?,
+    val name: String?, 
+    val cover: String?, 
+    val rating: String?, 
+    val category_id: String?, 
+    val last_modified: String?
+)
