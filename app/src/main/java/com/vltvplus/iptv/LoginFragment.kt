@@ -43,12 +43,11 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
 
         // CONFIGURAÇÃO COMPLETA DE CONTROLE REMOTO (LEANBACK/D-PAD)
         usernameEditText.isFocusable = true
-        usernameEditText.requestFocus() // Começa o foco aqui para facilitar na TV
+        usernameEditText.requestFocus() 
         
         passwordEditText.isFocusable = true
         loginButton.isFocusable = true
 
-        // Define a ordem do foco manualmente para evitar erros em diferentes Android TVs
         usernameEditText.nextFocusDownId = R.id.passwordEditText
         passwordEditText.nextFocusUpId = R.id.usernameEditText
         passwordEditText.nextFocusDownId = R.id.loginButton
@@ -63,29 +62,36 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
                 return@setOnClickListener
             }
 
-            // Feedback visual de conexão
             loginButton.text = "CONECTANDO..."
             loginButton.isEnabled = false
 
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
+                    // 1. Corrida de DNS
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
+                        loginButton.text = "SINCRONIZANDO..."
+                    }
+
+                    // 2. Sincronização Obrigatória (O Login ESPERA o banco carregar aqui)
+                    val repository = IptvRepository(requireContext().applicationContext)
+                    val sucessoSincronizacao = repository.sincronizarFilmes(vencedor, user, pass)
+
+                    withContext(Dispatchers.Main) {
                         if (isAdded) { 
-                            // 1. Inicia download silencioso real via Repository
-                            iniciarPreCarregamentoTurboEmSegundoPlano(vencedor, user, pass)
-                            
-                            // 2. Abre a Home instantaneamente (Estilo Disney+)
-                            abrirTelaHome()
+                            if (sucessoSincronizacao) {
+                                // 3. Abre a Home apenas com o banco preenchido
+                                abrirTelaHome()
+                            } else {
+                                resetarLogin(loginButton, "Erro ao carregar lista.")
+                            }
                         }
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         if (isAdded) {
-                            loginButton.text = "ENTRAR"
-                            loginButton.isEnabled = true
-                            Toast.makeText(requireContext(), "Erro de conexão. Verifique os dados.", Toast.LENGTH_LONG).show()
+                            resetarLogin(loginButton, "Erro de conexão. Verifique os dados.")
                         }
                     }
                 }
@@ -93,25 +99,26 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
         }
     }
 
+    private fun resetarLogin(button: Button, mensagem: String) {
+        button.text = "ENTRAR"
+        button.isEnabled = true
+        Toast.makeText(requireContext(), mensagem, Toast.LENGTH_LONG).show()
+    }
+
     private suspend fun iniciarCorridaDns(urls: List<String>): String = coroutineScope {
         val channel = Channel<String>()
-        
         urls.forEach { url ->
             launch {
                 try {
                     if (testarConexaoDns(url)) {
                         channel.send(url)
                     }
-                } catch (e: Exception) {
-                    // DNS falho ignorado
-                }
+                } catch (e: Exception) {}
             }
         }
-
         val dnsVencedor = channel.receive()
         coroutineContext.cancelChildren()
         channel.close()
-        
         return@coroutineScope dnsVencedor
     }
 
@@ -128,17 +135,6 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
             responseCode == 200 || responseCode == 401
         } catch (e: Exception) {
             false
-        }
-    }
-
-    private fun iniciarPreCarregamentoTurboEmSegundoPlano(dns: String, user: String, pass: String) {
-        // Dispara a sincronização via Repository usando o applicationContext para segurança
-        val repository = IptvRepository(requireContext().applicationContext)
-        
-        // Rodamos em uma GlobalScope ou mantemos no lifecycle do App se preferir, 
-        // mas aqui usamos o lifecycleScope do fragmento disparando uma tarefa IO independente
-        lifecycleScope.launch(Dispatchers.IO) {
-            repository.sincronizarFilmes(dns, user, pass)
         }
     }
 
