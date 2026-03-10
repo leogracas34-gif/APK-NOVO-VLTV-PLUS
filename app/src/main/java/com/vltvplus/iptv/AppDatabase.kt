@@ -5,9 +5,13 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [MovieEntity::class], version = 1, exportSchema = false)
+// Adicionado SeriesEntity à lista de entidades e incrementada a versão para refletir a mudança
+@Database(entities = [MovieEntity::class, SeriesEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
+    
     abstract fun movieDao(): MovieDao
+    // Novo acesso para o banco de dados de séries
+    abstract fun seriesDao(): SeriesDao
 
     companion object {
         @Volatile
@@ -20,6 +24,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "vltv_plus_db"
                 )
+                // O fallbackToDestructiveMigration limpa o banco antigo e cria o novo com as séries
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
