@@ -3,11 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
-    
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
@@ -22,13 +22,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VLTVPlus"
         android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="31">
         
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.VLTVPlus">
+            android:theme="@style/Theme.VLTVPlus"
+            android:configChanges="orientation|keyboardHidden|screenSize">
             
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
