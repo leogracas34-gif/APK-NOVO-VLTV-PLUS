@@ -85,8 +85,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val db = AppDatabase.getDatabase(requireContext())
                 
                 // Busca os dados reais salvos no Login
-                val savedMovies = db.movieDao().getMoviesByCategory("0").take(15)
-                val savedSeries = db.seriesDao().getAllSeries().take(15)
+                val savedMovies = db.streamDao().getMoviesByCategory("0").take(15)
+                val savedSeries = db.streamDao().getAllSeries().take(15)
 
                 withContext(Dispatchers.Main) {
                     // Limpa o adapter antes de adicionar para não duplicar listas
