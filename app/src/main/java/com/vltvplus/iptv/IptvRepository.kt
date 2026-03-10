@@ -17,18 +17,18 @@ class IptvRepository(private val context: Context) {
     private val client = OkHttpClient()
     private val gson = Gson()
 
-    suspend fun sincronizarFilmes(dns: String, user: String, pass: String) = withContext(Dispatchers.IO) {
-        try {
-            // URL padrão do Xtreme Codes para Filmes (VOD)
+    // Agora a função retorna um booleano para confirmar o preenchimento do banco
+    suspend fun sincronizarFilmes(dns: String, user: String, pass: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
             val url = "$dns/player_api.php?username=$user&password=$pass&action=get_vod_streams"
             
             val request = Request.Builder()
                 .url(url)
-                .addHeader("Accept-Encoding", "gzip") // Solicita compressão Gzip
+                .addHeader("Accept-Encoding", "gzip") 
                 .build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext
+                if (!response.isSuccessful) return@withContext false
 
                 val source = response.body?.source()
                 val inputStream = if (response.header("Content-Encoding") == "gzip") {
@@ -41,7 +41,7 @@ class IptvRepository(private val context: Context) {
                 val listType = object : TypeToken<List<IptvMovie>>() {}.type
                 val movies: List<IptvMovie> = gson.fromJson(reader, listType)
 
-                // Converte os dados da API para o formato do nosso Banco de Dados Room
+                // Mapeamento para o Banco de Dados Room
                 val entities = movies.map { 
                     MovieEntity(
                         streamId = it.streamId,
@@ -53,14 +53,16 @@ class IptvRepository(private val context: Context) {
                     )
                 }
 
-                // Salva tudo no banco de dados em lote (Muito rápido)
+                // Limpa o lixo anterior e salva a nova lista
                 movieDao.clearAll()
                 movieDao.insertAll(entities)
                 
                 Log.d("IPTV_REPO", "Sincronização concluída: ${entities.size} filmes salvos.")
+                true // Retorna sucesso para o LoginFragment
             }
         } catch (e: Exception) {
             Log.e("IPTV_REPO", "Erro no download turbo: ${e.message}")
+            false // Retorna falha
         }
     }
 }
