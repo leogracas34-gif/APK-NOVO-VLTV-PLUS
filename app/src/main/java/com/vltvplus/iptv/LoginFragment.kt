@@ -41,7 +41,7 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
         val passwordEditText = view.findViewById<EditText>(R.id.passwordEditText)
         val loginButton = view.findViewById<Button>(R.id.loginButton)
 
-        // CONFIGURAÇÃO COMPLETA DE CONTROLE REMOTO (LEANBACK/D-PAD)
+        // CONFIGURAÇÃO DE FOCO PARA CONTROLE REMOTO
         usernameEditText.isFocusable = true
         usernameEditText.requestFocus() 
         
@@ -62,26 +62,29 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
                 return@setOnClickListener
             }
 
+            // Início do processo visual
             loginButton.text = "CONECTANDO..."
             loginButton.isEnabled = false
 
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    // 1. Corrida de DNS para encontrar o servidor mais rápido
+                    // 1. Corrida de DNS para garantir a melhor conexão
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
                         loginButton.text = "SINCRONIZANDO..."
                     }
 
-                    // 2. Sincronização Total (Baixa Filmes e Séries antes de entrar)
+                    // 2. Sincronização Inteligente:
+                    // O Repository agora libera o "true" assim que os primeiros dados 
+                    // de prioridade (Elite/Novidades) são salvos ou se já existirem.
                     val repository = IptvRepository(requireContext().applicationContext)
-                    val sucessoSincronizacao = repository.sincronizarConteudoTotal(vencedor, user, pass)
+                    val prontoParaAbrir = repository.sincronizarConteudoTotal(vencedor, user, pass)
 
                     withContext(Dispatchers.Main) {
                         if (isAdded) { 
-                            if (sucessoSincronizacao) {
-                                // 3. Abre a Home com todo o conteúdo já no banco
+                            if (prontoParaAbrir) {
+                                // 3. Abre a Home instantaneamente (o resto baixa em background)
                                 abrirTelaHome()
                             } else {
                                 resetarLogin(loginButton, "Erro ao sincronizar conteúdo.")
