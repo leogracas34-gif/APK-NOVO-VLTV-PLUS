@@ -37,22 +37,29 @@ class MoviesFragment : Fragment(R.layout.fragment_home) {
 
     private fun loadContentFromDatabase() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val db = AppDatabase.getDatabase(requireContext())
-            // Pegamos todos os filmes para exibir na tela de Filmes
-            val allMovies = db.movieDao().getMoviesByCategory("0") 
+            try {
+                val db = AppDatabase.getDatabase(requireContext())
+                val dao = db.streamDao() // Corrigido para usar o streamDao() do AppDatabase v6
+                
+                // Pegamos todos os filmes usando a função correta do seu DAO
+                val allMovies = dao.getAllVods() 
 
-            withContext(Dispatchers.Main) {
-                if (allMovies.isNotEmpty()) {
-                    val listRowAdapter = ArrayObjectAdapter(CardPresenter())
-                    val header = HeaderItem("Todos os Filmes")
-                    
-                    allMovies.forEach { entity ->
-                        // Cria o objeto Movie que o CardPresenter entende
-                        listRowAdapter.add(Movie(entity.name, null))
+                withContext(Dispatchers.Main) {
+                    if (allMovies.isNotEmpty()) {
+                        val listRowAdapter = ArrayObjectAdapter(CardPresenter())
+                        val header = HeaderItem("Todos os Filmes")
+                        
+                        // Especificando o tipo VodEntity para remover o erro de ambiguidade do Kotlin
+                        allMovies.forEach { entity: VodEntity ->
+                            // Usa o Movie(title, logoUrl) que você definiu na HomeFragment
+                            listRowAdapter.add(Movie(entity.name, entity.stream_icon))
+                        }
+                        
+                        mainAdapter.add(ListRow(header, listRowAdapter))
                     }
-                    
-                    mainAdapter.add(ListRow(header, listRowAdapter))
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
