@@ -27,19 +27,19 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 1. Configuração dos Botões de Atalho com Foco Leanback
+        // 1. Configuração dos Botões de Atalho para abrir as Telas Reais
         setupCategoryButtons(view)
 
         // 2. Configuração do Banner de Destaque
         val banner = view.findViewById<ImageView>(R.id.bannerImage)
         banner.isFocusable = true
-        banner.requestFocus() // O Banner recebe o foco inicial para o controle remoto
+        banner.requestFocus() // Foco inicial no Banner para controle remoto
         
         banner.setOnClickListener {
             Toast.makeText(context, "Abrindo Destaque...", Toast.LENGTH_SHORT).show()
         }
 
-        // 3. Inicialização dos Trilhos de Filmes (Grid Vertical)
+        // 3. Inicialização dos Trilhos (Grid Vertical)
         setupRows()
     }
 
@@ -48,19 +48,20 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val btnMovies = view.findViewById<Button>(R.id.btnMovies)
         val btnSeries = view.findViewById<Button>(R.id.btnSeries)
 
-        val categoryClickListener = View.OnClickListener { v ->
-            val msg = when (v.id) {
-                R.id.btnLiveTv -> "Abrindo TV ao Vivo..."
-                R.id.btnMovies -> "Abrindo Filmes..."
-                R.id.btnSeries -> "Abrindo Séries..."
-                else -> ""
-            }
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        btnLive.setOnClickListener {
+            // No futuro: replaceFragment(LiveFragment())
+            Toast.makeText(context, "Abrindo TV ao Vivo...", Toast.LENGTH_SHORT).show()
         }
 
-        btnLive.setOnClickListener(categoryClickListener)
-        btnMovies.setOnClickListener(categoryClickListener)
-        btnSeries.setOnClickListener(categoryClickListener)
+        btnMovies.setOnClickListener {
+            // Abre a tela real de Filmes
+            replaceFragment(MoviesFragment())
+        }
+
+        btnSeries.setOnClickListener {
+            // Abre a tela real de Séries
+            replaceFragment(SeriesFragment())
+        }
     }
 
     private fun setupRows() {
@@ -74,56 +75,71 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         mainAdapter = ArrayObjectAdapter(presenterSelector)
         rowsSupportFragment.adapter = mainAdapter
 
-        // Inicia a carga dos dados reais vindos do Banco de Dados Room preenchido no Login
-        loadMoviesFromDatabase()
+        // Carrega o conteúdo misto para a Home (Filmes e Séries)
+        loadHomeContent()
     }
 
-    private fun loadMoviesFromDatabase() {
+    private fun loadHomeContent() {
         lifecycleScope.launch(Dispatchers.IO) {
             val db = AppDatabase.getDatabase(requireContext())
-            // Busca os filmes salvos (pegando os primeiros 50 para preencher a Home rápido)
-            val savedMovies = db.movieDao().getMoviesByCategory("0").take(50)
+            
+            // Busca os dados reais salvos no Login
+            val savedMovies = db.movieDao().getMoviesByCategory("0").take(15)
+            val savedSeries = db.seriesDao().getAllSeries().take(15)
 
-            if (savedMovies.isNotEmpty()) {
-                withContext(Dispatchers.Main) {
-                    val listRowAdapter = ArrayObjectAdapter(CardPresenter())
-                    val header = HeaderItem("Conteúdo para Você")
-                    mainAdapter.add(ListRow(header, listRowAdapter))
-
-                    // Para cada filme real, busca o logo no TMDB de forma assíncrona
+            withContext(Dispatchers.Main) {
+                // 1. Cria o Trilho de Filmes
+                if (savedMovies.isNotEmpty()) {
+                    val movieAdapter = ArrayObjectAdapter(CardPresenter())
+                    mainAdapter.add(ListRow(HeaderItem("Filmes Recomendados"), movieAdapter))
+                    
                     savedMovies.forEach { entity ->
                         lifecycleScope.launch(Dispatchers.IO) {
-                            val logo = fetchLogoFromTMDB(entity.name)
+                            val logo = fetchLogoFromTMDB(entity.name, "movie")
                             withContext(Dispatchers.Main) {
-                                // Adiciona o filme ao trilho assim que o logo é encontrado
-                                listRowAdapter.add(Movie(entity.name, logo))
+                                movieAdapter.add(Movie(entity.name, logo))
                             }
                         }
                     }
                 }
-            } else {
-                withContext(Dispatchers.Main) {
-                    // Caso o banco ainda esteja processando, tenta novamente em 2 segundos
-                    // Isso evita que a Home fique vazia permanentemente
-                    view?.postDelayed({ loadMoviesFromDatabase() }, 2000)
+
+                // 2. Cria o Trilho de Séries
+                if (savedSeries.isNotEmpty()) {
+                    val seriesAdapter = ArrayObjectAdapter(CardPresenter())
+                    mainAdapter.add(ListRow(HeaderItem("Séries em Destaque"), seriesAdapter))
+                    
+                    savedSeries.forEach { entity ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val logo = fetchLogoFromTMDB(entity.name, "tv")
+                            withContext(Dispatchers.Main) {
+                                seriesAdapter.add(Movie(entity.name, logo))
+                            }
+                        }
+                    }
+                }
+
+                // Se ainda estiver tudo vazio, tenta novamente em breve (banco sendo populado)
+                if (savedMovies.isEmpty() && savedSeries.isEmpty()) {
+                    view?.postDelayed({ loadHomeContent() }, 2000)
                 }
             }
         }
     }
 
-    private suspend fun fetchLogoFromTMDB(query: String): String? {
+    private suspend fun fetchLogoFromTMDB(query: String, type: String): String? {
         return try {
-            // Busca o filme priorizando resultados em Português do Brasil (pt-BR)
-            val searchUrl = "https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=${query.replace(" ", "%20")}&language=pt-BR"
+            val searchPath = if (type == "movie") "search/movie" else "search/tv"
+            val searchUrl = "https://api.themoviedb.org/3/$searchPath?api_key=$apiKey&query=${query.replace(" ", "%20")}&language=pt-BR"
+            
             val response = URL(searchUrl).readText()
             val json = JSONObject(response)
             val results = json.getJSONArray("results")
             
             if (results.length() > 0) {
-                val movieId = results.getJSONObject(0).getInt("id")
+                val id = results.getJSONObject(0).getInt("id")
+                val imagesPath = if (type == "movie") "movie/$id/images" else "tv/$id/images"
                 
-                // Busca logos em PT, EN ou null (transparente)
-                val imagesUrl = "https://api.themoviedb.org/3/movie/$movieId/images?api_key=$apiKey&include_image_language=pt,en,null"
+                val imagesUrl = "https://api.themoviedb.org/3/$imagesPath?api_key=$apiKey&include_image_language=pt,en,null"
                 val imagesResponse = URL(imagesUrl).readText()
                 val imagesJson = JSONObject(imagesResponse)
                 val logos = imagesJson.getJSONArray("logos")
@@ -136,5 +152,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun replaceFragment(fragment: Fragment) {
+        parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.fragmentContainer, fragment)
+            .addToBackStack(null) // Permite voltar para a Home ao apertar "Back"
+            .commit()
     }
 }
