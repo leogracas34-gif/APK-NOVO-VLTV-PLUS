@@ -68,27 +68,27 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
 
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    // 1. Corrida de DNS para garantir a melhor conexão
+                    // 1. Corrida de DNS para encontrar o servidor mais rápido
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
-                        loginButton.text = "SINCRONIZANDO..."
+                        loginButton.text = "ENTRANDO..."
                     }
 
-                    // 2. Sincronização Inteligente:
-                    // O Repository agora libera o "true" assim que os primeiros dados 
-                    // de prioridade (Elite/Novidades) são salvos ou se já existirem.
+                    // 2. Dispara a Sincronização em Segundo Plano (Background)
                     val repository = IptvRepository(requireContext().applicationContext)
-                    val prontoParaAbrir = repository.sincronizarConteudoTotal(vencedor, user, pass)
+                    
+                    // Iniciamos a sincronização, mas não esperamos ela terminar para abrir a Home
+                    // O motor (IptvRepository) já cuida de baixar o lote prioritário e depois o resto
+                    launch {
+                        repository.sincronizarConteudoTotal(vencedor, user, pass)
+                    }
 
                     withContext(Dispatchers.Main) {
                         if (isAdded) { 
-                            if (prontoParaAbrir) {
-                                // 3. Abre a Home instantaneamente (o resto baixa em background)
-                                abrirTelaHome()
-                            } else {
-                                resetarLogin(loginButton, "Erro ao sincronizar conteúdo.")
-                            }
+                            // 3. Pula para a Home IMEDIATAMENTE após validar o DNS
+                            // Isso acaba com o erro de "travado na sincronização"
+                            abrirTelaHome()
                         }
                     }
                 } catch (e: Exception) {
@@ -129,8 +129,8 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
         return try {
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 2500
-            connection.readTimeout = 2500
+            connection.connectTimeout = 3000 // Aumentado levemente para maior estabilidade
+            connection.readTimeout = 3000
             connection.requestMethod = "GET"
             connection.connect()
             val responseCode = connection.responseCode
