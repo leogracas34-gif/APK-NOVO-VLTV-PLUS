@@ -20,25 +20,23 @@ class IptvRepository(private val context: Context) {
     private val client = OkHttpClient()
     private val gson = Gson()
 
-    // FUNÇÃO PRINCIPAL: Faz a carga rápida para liberar a Home e continua o resto em background
+    // MULTI-SERVIDOR: A variável 'dns' injetada aqui garante a conexão com qualquer servidor ativo
     suspend fun sincronizarConteudoTotal(dns: String, user: String, pass: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Verifica se já temos dados. Se tiver, libera a Home na hora (0 segundos de espera)
+            // Verifica se já temos dados para liberar a entrada imediata
             val temDados = movieDao.getCount() > 0 || seriesDao.getCount() > 0
             
             if (temDados) {
-                // Dispara a atualização silenciosa em background e libera a Home
                 launch { atualizarTudo(dns, user, pass) }
                 return@withContext true
             }
 
-            // Se for a primeira vez (banco vazio), faz a carga prioritária (2 segundos)
+            // Carga prioritária baseada no JSON real (pega os 100 primeiros para garantir volume)
             val jobFilmes = async { sincronizarFilmes(dns, user, pass, priority = true) }
             val jobSeries = async { sincronizarSeries(dns, user, pass, priority = true) }
 
             val sucessoInicial = jobFilmes.await() && jobSeries.await()
 
-            // Após liberar a Home com os primeiros dados, dispara o download do resto em background
             if (sucessoInicial) {
                 launch { atualizarTudo(dns, user, pass) }
             }
@@ -72,18 +70,17 @@ class IptvRepository(private val context: Context) {
 
                 val reader = inputStream?.bufferedReader()
                 val listType = object : TypeToken<List<IptvMovie>>() {}.type
-                val movies: List<IptvMovie> = gson.fromJson(reader, listType)
+                val movies: List<IptvMovie> = gson.fromJson(reader, listType) ?: emptyList()
 
-                // Se for prioridade, pegamos apenas os primeiros 50 para abrir a Home JÁ CHEIA
-                val listToProcess = if (priority) movies.take(50) else movies
+                val listToProcess = if (priority) movies.take(100) else movies
 
                 val entities = listToProcess.map { 
                     MovieEntity(
                         streamId = it.streamId,
                         name = it.name,
                         containerExtension = it.containerExtension,
-                        categoryId = it.categoryId ?: "0",
-                        streamIcon = it.streamIcon,
+                        categoryId = it.categoryId ?: "Sem Categoria",
+                        streamIcon = it.streamIcon ?: "", // Proteção contra campos nulos do JSON
                         rating = it.rating
                     )
                 }
@@ -94,6 +91,7 @@ class IptvRepository(private val context: Context) {
                 true
             }
         } catch (e: Exception) {
+            Log.e("IPTV_REPO", "Falha ao processar Filmes: ${e.message}")
             false
         }
     }
@@ -115,16 +113,16 @@ class IptvRepository(private val context: Context) {
 
                 val reader = inputStream?.bufferedReader()
                 val listType = object : TypeToken<List<IptvSeries>>() {}.type
-                val series: List<IptvSeries> = gson.fromJson(reader, listType)
+                val series: List<IptvSeries> = gson.fromJson(reader, listType) ?: emptyList()
 
-                val listToProcess = if (priority) series.take(50) else series
+                val listToProcess = if (priority) series.take(100) else series
 
                 val entities = listToProcess.map { 
                     SeriesEntity(
                         seriesId = it.seriesId.toInt(),
                         name = it.name,
                         seriesIdString = it.seriesId,
-                        cover = it.cover ?: it.lastModified,
+                        cover = it.cover ?: "", // Captura a capa vinda do JSON
                         plot = it.plot,
                         cast = it.cast,
                         director = it.director,
@@ -132,7 +130,7 @@ class IptvRepository(private val context: Context) {
                         releaseDate = it.releaseDate,
                         lastModified = it.lastModified,
                         rating = it.rating,
-                        categoryId = it.categoryId ?: "0"
+                        categoryId = it.categoryId ?: "Sem Categoria"
                     )
                 }
 
@@ -142,6 +140,7 @@ class IptvRepository(private val context: Context) {
                 true
             }
         } catch (e: Exception) {
+            Log.e("IPTV_REPO", "Falha ao processar Séries: ${e.message}")
             false
         }
     }
