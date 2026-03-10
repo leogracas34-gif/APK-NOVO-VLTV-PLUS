@@ -72,11 +72,11 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
-                        if (isAdded) { // Verifica se o fragmento ainda existe
-                            // 1. Inicia download silencioso usando o Banco de Dados Room
+                        if (isAdded) { 
+                            // 1. Inicia download silencioso real via Repository
                             iniciarPreCarregamentoTurboEmSegundoPlano(vencedor, user, pass)
                             
-                            // 2. Abre a Home instantaneamente
+                            // 2. Abre a Home instantaneamente (Estilo Disney+)
                             abrirTelaHome()
                         }
                     }
@@ -132,12 +132,14 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
     }
 
     private fun iniciarPreCarregamentoTurboEmSegundoPlano(dns: String, user: String, pass: String) {
-        // Inicializa o banco de dados Room para começar a receber os dados
-        val db = AppDatabase.getDatabase(requireContext())
-        val movieDao = db.movieDao()
+        // Dispara a sincronização via Repository usando o applicationContext para segurança
+        val repository = IptvRepository(requireContext().applicationContext)
         
-        // A lógica de parse do JSON/Gzip será implementada aqui para rodar em background
-        // sem interferir na navegação da Home que já estará aberta.
+        // Rodamos em uma GlobalScope ou mantemos no lifecycle do App se preferir, 
+        // mas aqui usamos o lifecycleScope do fragmento disparando uma tarefa IO independente
+        lifecycleScope.launch(Dispatchers.IO) {
+            repository.sincronizarFilmes(dns, user, pass)
+        }
     }
 
     private fun abrirTelaHome() {
