@@ -97,20 +97,23 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private suspend fun fetchLogoFromTMDB(query: String): String? {
         return try {
-            val searchUrl = "https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=${query.replace(" ", "%20")}"
+            // Busca o filme priorizando resultados em Português do Brasil
+            val searchUrl = "https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=${query.replace(" ", "%20")}&language=pt-BR"
             val response = URL(searchUrl).readText()
             val json = JSONObject(response)
             val results = json.getJSONArray("results")
             
             if (results.length() > 0) {
                 val movieId = results.getJSONObject(0).getInt("id")
-                val imagesUrl = "https://api.themoviedb.org/3/movie/$movieId/images?api_key=$apiKey"
+                
+                // Busca as imagens solicitando logos em PT, EN ou sem idioma (null) para garantir que o card não fique vazio
+                val imagesUrl = "https://api.themoviedb.org/3/movie/$movieId/images?api_key=$apiKey&include_image_language=pt,en,null"
                 val imagesResponse = URL(imagesUrl).readText()
                 val imagesJson = JSONObject(imagesResponse)
                 val logos = imagesJson.getJSONArray("logos")
                 
                 if (logos.length() > 0) {
-                    // Pega o caminho do primeiro logo transparente (.png)
+                    // Pega o caminho do logo com melhor prioridade de idioma encontrada
                     val filePath = logos.getJSONObject(0).getString("file_path")
                     "https://image.tmdb.org/t/p/original$filePath"
                 } else null
