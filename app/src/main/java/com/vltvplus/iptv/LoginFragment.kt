@@ -41,6 +41,19 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
         val passwordEditText = view.findViewById<EditText>(R.id.passwordEditText)
         val loginButton = view.findViewById<Button>(R.id.loginButton)
 
+        // CONFIGURAÇÃO COMPLETA DE CONTROLE REMOTO (LEANBACK/D-PAD)
+        usernameEditText.isFocusable = true
+        usernameEditText.requestFocus() // Começa o foco aqui para facilitar na TV
+        
+        passwordEditText.isFocusable = true
+        loginButton.isFocusable = true
+
+        // Define a ordem do foco manualmente para evitar erros em diferentes Android TVs
+        usernameEditText.nextFocusDownId = R.id.passwordEditText
+        passwordEditText.nextFocusUpId = R.id.usernameEditText
+        passwordEditText.nextFocusDownId = R.id.loginButton
+        loginButton.nextFocusUpId = R.id.passwordEditText
+
         loginButton.setOnClickListener {
             val user = usernameEditText.text.toString().trim()
             val pass = passwordEditText.text.toString().trim()
@@ -50,27 +63,30 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
                 return@setOnClickListener
             }
 
-            // Feedback visual de conexão para o usuário (TV/Mobile)
+            // Feedback visual de conexão
             loginButton.text = "CONECTANDO..."
             loginButton.isEnabled = false
 
-            // Corrida dos 12 DNS em segundo plano (Não trava a UI)
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
-                        // 1. Download silencioso em background
-                        iniciarPreCarregamentoTurboEmSegundoPlano(vencedor, user, pass)
-                        
-                        // 2. Abre a Home instantaneamente (Lógica Disney+)
-                        abrirTelaHome()
+                        if (isAdded) { // Verifica se o fragmento ainda existe
+                            // 1. Inicia download silencioso usando o Banco de Dados Room
+                            iniciarPreCarregamentoTurboEmSegundoPlano(vencedor, user, pass)
+                            
+                            // 2. Abre a Home instantaneamente
+                            abrirTelaHome()
+                        }
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        loginButton.text = "ENTRAR"
-                        loginButton.isEnabled = true
-                        Toast.makeText(requireContext(), "Erro de conexão. Verifique os dados.", Toast.LENGTH_LONG).show()
+                        if (isAdded) {
+                            loginButton.text = "ENTRAR"
+                            loginButton.isEnabled = true
+                            Toast.makeText(requireContext(), "Erro de conexão. Verifique os dados.", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
@@ -87,14 +103,12 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
                         channel.send(url)
                     }
                 } catch (e: Exception) {
-                    // Falha em um DNS não interrompe os outros
+                    // DNS falho ignorado
                 }
             }
         }
 
         val dnsVencedor = channel.receive()
-        
-        // Mata as outras 11 tentativas para economizar bateria e processamento
         coroutineContext.cancelChildren()
         channel.close()
         
@@ -118,11 +132,15 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
     }
 
     private fun iniciarPreCarregamentoTurboEmSegundoPlano(dns: String, user: String, pass: String) {
-        // Futura integração com Room para salvar os dados enquanto o usuário navega na Home
+        // Inicializa o banco de dados Room para começar a receber os dados
+        val db = AppDatabase.getDatabase(requireContext())
+        val movieDao = db.movieDao()
+        
+        // A lógica de parse do JSON/Gzip será implementada aqui para rodar em background
+        // sem interferir na navegação da Home que já estará aberta.
     }
 
     private fun abrirTelaHome() {
-        // Realiza a troca de tela para o HomeFragment com suporte a controle remoto
         parentFragmentManager.beginTransaction()
             .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
             .replace(R.id.fragmentContainer, HomeFragment())
