@@ -41,28 +41,35 @@ class SeriesFragment : Fragment(R.layout.fragment_home) {
 
     private fun loadSeriesFromDatabase() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val db = AppDatabase.getDatabase(requireContext())
-            // Busca o conteúdo que foi marcado como série (Ex: categoria de séries no IPTV)
-            // Aqui buscamos uma amostragem inicial para preencher a tela
-            val savedSeries = db.movieDao().getMoviesByCategory("series_category_id").take(40)
+            try {
+                val db = AppDatabase.getDatabase(requireContext())
+                val dao = db.streamDao() // Corrigido para usar o streamDao() v6
+                
+                // Busca todas as séries salvas na tabela series_streams
+                val savedSeries = dao.getAllSeries().take(40)
 
-            if (savedSeries.isNotEmpty()) {
-                withContext(Dispatchers.Main) {
-                    val listRowAdapter = ArrayObjectAdapter(CardPresenter())
-                    val header = HeaderItem("Séries em Destaque")
-                    mainAdapter.add(ListRow(header, listRowAdapter))
+                if (savedSeries.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        val listRowAdapter = ArrayObjectAdapter(CardPresenter())
+                        val header = HeaderItem("Séries em Destaque")
+                        mainAdapter.add(ListRow(header, listRowAdapter))
 
-                    // Busca os logos no TMDB para cada série encontrada
-                    savedSeries.forEach { entity ->
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val logo = fetchSeriesLogoFromTMDB(entity.name)
-                            withContext(Dispatchers.Main) {
-                                // Adiciona a série ao trilho (Movie aqui é o nosso modelo de UI)
-                                listRowAdapter.add(Movie(entity.name, logo))
+                        // Busca os logos no TMDB para cada série encontrada
+                        // Especificando SeriesEntity para resolver o erro de ambiguidade
+                        savedSeries.forEach { entity: SeriesEntity ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val logo = fetchSeriesLogoFromTMDB(entity.name)
+                                withContext(Dispatchers.Main) {
+                                    // Adiciona ao trilho usando o modelo Movie definido na Home
+                                    // Se não achar logo no TMDB, usa o cover do próprio banco
+                                    listRowAdapter.add(Movie(entity.name, logo ?: entity.cover))
+                                }
                             }
                         }
                     }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
