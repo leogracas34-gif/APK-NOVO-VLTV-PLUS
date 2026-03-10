@@ -18,7 +18,7 @@ import java.net.URL
 
 class LoginFragment : Fragment(R.layout.fragment_login) {
 
-    // Lista dos 12 DNS que combinamos (coloque as URLs reais aqui depois)
+    // Lista oficial dos 12 DNS reais do VLTV+
     private val dnsList = listOf(
         "http://fibercdn.sbs",
         "http://tvblack.shop",
@@ -50,36 +50,33 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
                 return@setOnClickListener
             }
 
-            // Altera o visual do botão para mostrar que está processando
+            // Feedback visual de conexão para o usuário (TV/Mobile)
             loginButton.text = "CONECTANDO..."
             loginButton.isEnabled = false
 
-            // Inicia a corrida dos 12 DNS em segundo plano para não travar a tela
+            // Corrida dos 12 DNS em segundo plano (Não trava a UI)
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(requireContext(), "Conectado no DNS: $vencedor", Toast.LENGTH_SHORT).show()
-                        
-                        // 1. Dispara o download silencioso
+                        // 1. Download silencioso em background
                         iniciarPreCarregamentoTurboEmSegundoPlano(vencedor, user, pass)
                         
-                        // 2. Pula para a Home sem esperar o download terminar
+                        // 2. Abre a Home instantaneamente (Lógica Disney+)
                         abrirTelaHome()
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         loginButton.text = "ENTRAR"
                         loginButton.isEnabled = true
-                        Toast.makeText(requireContext(), "Nenhum DNS respondeu. Tente novamente.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(requireContext(), "Erro de conexão. Verifique os dados.", Toast.LENGTH_LONG).show()
                     }
                 }
             }
         }
     }
 
-    // Lógica Exata: Dispara os 12, o primeiro que responder OK cancela os outros imediatamente
     private suspend fun iniciarCorridaDns(urls: List<String>): String = coroutineScope {
         val channel = Channel<String>()
         
@@ -87,57 +84,48 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
             launch {
                 try {
                     if (testarConexaoDns(url)) {
-                        channel.send(url) // Envia o vencedor para o canal
+                        channel.send(url)
                     }
                 } catch (e: Exception) {
-                    // Se este falhar, ignora em silêncio e deixa os outros continuarem a corrida
+                    // Falha em um DNS não interrompe os outros
                 }
             }
         }
 
-        // Fica aguardando o milissegundo em que o primeiro servidor enviar o OK
         val dnsVencedor = channel.receive()
         
-        // Cancela e mata imediatamente a busca nos outros servidores que ficaram para trás
+        // Mata as outras 11 tentativas para economizar bateria e processamento
         coroutineContext.cancelChildren()
         channel.close()
         
         return@coroutineScope dnsVencedor
     }
 
-    // Testa a conexão para ver se o servidor IPTV está online
     private fun testarConexaoDns(urlString: String): Boolean {
         return try {
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 2500 // Tempo máximo de resposta bem agressivo (2.5 segundos)
+            connection.connectTimeout = 2500
             connection.readTimeout = 2500
             connection.requestMethod = "GET"
             connection.connect()
             val responseCode = connection.responseCode
             connection.disconnect()
-            responseCode == 200 || responseCode == 401 // 200 (OK) ou 401 (API viva, mas pede login)
+            responseCode == 200 || responseCode == 401
         } catch (e: Exception) {
             false
         }
     }
 
-    // Função que abrigará o Gzip e o Banco de Dados no futuro
     private fun iniciarPreCarregamentoTurboEmSegundoPlano(dns: String, user: String, pass: String) {
-        // O código do OkHttp com Gzip e DoH (Anti-bloqueio) será injetado aqui
-        // Isso rodará 100% em background sem congelar a interface
+        // Futura integração com Room para salvar os dados enquanto o usuário navega na Home
     }
 
-    // Substitui o cenário atual pelo cenário da Home
     private fun abrirTelaHome() {
-        // Como o HomeFragment ainda não existe, coloquei um Toast temporário para o código compilar no GitHub
-        Toast.makeText(requireContext(), "Iniciando Home Instantânea...", Toast.LENGTH_SHORT).show()
-        
-        // O código final será este abaixo (comentado até criarmos a tela Home):
-        /*
-        requireActivity().supportFragmentManager.beginTransaction()
+        // Realiza a troca de tela para o HomeFragment com suporte a controle remoto
+        parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
             .replace(R.id.fragmentContainer, HomeFragment())
             .commit()
-        */
     }
 }
