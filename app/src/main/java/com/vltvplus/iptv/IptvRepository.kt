@@ -1,4 +1,4 @@
-package com.vltv.play.data
+package com.vltvplus.iptv
 
 import android.content.Context
 import android.util.Log
