@@ -1,0 +1,122 @@
+package com.vltvplus.iptv
+
+import android.os.Bundle
+import android.view.View
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.Toast
+import androidx.fragment.app.Fragment
+import androidx.leanback.app.RowsSupportFragment
+import androidx.leanback.widget.*
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.URL
+
+// Modelo de dados para suportar o Logo do TMDB
+data class Movie(val title: String, var logoUrl: String? = null)
+
+class HomeFragment : Fragment(R.layout.fragment_home) {
+
+    private val apiKey = "9b73f5dd15b8165b1b57419be2f29128"
+    private lateinit var rowsSupportFragment: RowsSupportFragment
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // 1. Configuração dos Botões de Atalho com Foco Leanback
+        setupCategoryButtons(view)
+
+        // 2. Configuração do Banner de Destaque
+        val banner = view.findViewById<ImageView>(R.id.bannerImage)
+        banner.setOnClickListener {
+            Toast.makeText(context, "Abrindo Destaque...", Toast.LENGTH_SHORT).show()
+        }
+
+        // 3. Inicialização dos Trilhos de Filmes (Grid Vertical)
+        setupRows()
+    }
+
+    private fun setupCategoryButtons(view: View) {
+        val btnLive = view.findViewById<Button>(R.id.btnLiveTv)
+        val btnMovies = view.findViewById<Button>(R.id.btnMovies)
+        val btnSeries = view.findViewById<Button>(R.id.btnSeries)
+
+        val categoryClickListener = View.OnClickListener { v ->
+            val msg = when (v.id) {
+                R.id.btnLiveTv -> "Abrindo TV ao Vivo..."
+                R.id.btnMovies -> "Abrindo Filmes..."
+                R.id.btnSeries -> "Abrindo Séries..."
+                else -> ""
+            }
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+
+        btnLive.setOnClickListener(categoryClickListener)
+        btnMovies.setOnClickListener(categoryClickListener)
+        btnSeries.setOnClickListener(categoryClickListener)
+    }
+
+    private fun setupRows() {
+        rowsSupportFragment = RowsSupportFragment()
+        
+        childFragmentManager.beginTransaction()
+            .replace(R.id.homeMainGrid, rowsSupportFragment)
+            .commit()
+
+        val presenterSelector = ListRowPresenter()
+        val adapter = ArrayObjectAdapter(presenterSelector)
+
+        // Criação das linhas com busca automática de logos via TMDB
+        createSampleRow(adapter, "Lançamentos Imperdíveis", listOf("Avatar", "Inception", "Interstellar"))
+        createSampleRow(adapter, "Filmes de Ação", listOf("John Wick", "Matrix", "Gladiator"))
+        createSampleRow(adapter, "Séries de Sucesso", listOf("The Last of Us", "Breaking Bad", "Succession"))
+
+        rowsSupportFragment.adapter = adapter
+    }
+
+    private fun createSampleRow(mainAdapter: ArrayObjectAdapter, title: String, moviesNames: List<String>) {
+        val cardPresenter = CardPresenter() 
+        val listRowAdapter = ArrayObjectAdapter(cardPresenter)
+        val header = HeaderItem(title)
+        
+        mainAdapter.add(ListRow(header, listRowAdapter))
+
+        // Busca os logos para cada filme desta linha em segundo plano
+        lifecycleScope.launch(Dispatchers.IO) {
+            moviesNames.forEach { name ->
+                val logo = fetchLogoFromTMDB(name)
+                withContext(Dispatchers.Main) {
+                    listRowAdapter.add(Movie(name, logo))
+                }
+            }
+        }
+    }
+
+    private suspend fun fetchLogoFromTMDB(query: String): String? {
+        return try {
+            val searchUrl = "https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=${query.replace(" ", "%20")}"
+            val response = URL(searchUrl).readText()
+            val json = JSONObject(response)
+            val results = json.getJSONArray("results")
+            
+            if (results.length() > 0) {
+                val movieId = results.getJSONObject(0).getInt("id")
+                val imagesUrl = "https://api.themoviedb.org/3/movie/$movieId/images?api_key=$apiKey"
+                val imagesResponse = URL(imagesUrl).readText()
+                val imagesJson = JSONObject(imagesResponse)
+                val logos = imagesJson.getJSONArray("logos")
+                
+                if (logos.length() > 0) {
+                    // Pega o caminho do primeiro logo transparente (.png)
+                    val filePath = logos.getJSONObject(0).getString("file_path")
+                    "https://image.tmdb.org/t/p/original$filePath"
+                } else null
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
