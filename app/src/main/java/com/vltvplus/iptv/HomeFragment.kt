@@ -32,6 +32,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         // 2. Configuração do Banner de Destaque
         val banner = view.findViewById<ImageView>(R.id.bannerImage)
+        banner.isFocusable = true
+        banner.requestFocus() // O Banner recebe o foco inicial para o controle remoto
+        
         banner.setOnClickListener {
             Toast.makeText(context, "Abrindo Destaque...", Toast.LENGTH_SHORT).show()
         }
@@ -71,15 +74,15 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         mainAdapter = ArrayObjectAdapter(presenterSelector)
         rowsSupportFragment.adapter = mainAdapter
 
-        // Inicia a carga dos dados reais vindos do Banco de Dados Room
+        // Inicia a carga dos dados reais vindos do Banco de Dados Room preenchido no Login
         loadMoviesFromDatabase()
     }
 
     private fun loadMoviesFromDatabase() {
         lifecycleScope.launch(Dispatchers.IO) {
             val db = AppDatabase.getDatabase(requireContext())
-            // Busca todos os filmes salvos (limitando a 15 para o primeiro trilho de teste)
-            val savedMovies = db.movieDao().getMoviesByCategory("0").take(15)
+            // Busca os filmes salvos (pegando os primeiros 50 para preencher a Home rápido)
+            val savedMovies = db.movieDao().getMoviesByCategory("0").take(50)
 
             if (savedMovies.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
@@ -87,15 +90,22 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     val header = HeaderItem("Conteúdo para Você")
                     mainAdapter.add(ListRow(header, listRowAdapter))
 
-                    // Para cada filme real, busca o logo no TMDB
+                    // Para cada filme real, busca o logo no TMDB de forma assíncrona
                     savedMovies.forEach { entity ->
                         lifecycleScope.launch(Dispatchers.IO) {
                             val logo = fetchLogoFromTMDB(entity.name)
                             withContext(Dispatchers.Main) {
+                                // Adiciona o filme ao trilho assim que o logo é encontrado
                                 listRowAdapter.add(Movie(entity.name, logo))
                             }
                         }
                     }
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    // Caso o banco ainda esteja processando, tenta novamente em 2 segundos
+                    // Isso evita que a Home fique vazia permanentemente
+                    view?.postDelayed({ loadMoviesFromDatabase() }, 2000)
                 }
             }
         }
@@ -103,7 +113,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private suspend fun fetchLogoFromTMDB(query: String): String? {
         return try {
-            // Busca o filme priorizando resultados em Português do Brasil
+            // Busca o filme priorizando resultados em Português do Brasil (pt-BR)
             val searchUrl = "https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=${query.replace(" ", "%20")}&language=pt-BR"
             val response = URL(searchUrl).readText()
             val json = JSONObject(response)
@@ -112,7 +122,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (results.length() > 0) {
                 val movieId = results.getJSONObject(0).getInt("id")
                 
-                // Busca as imagens solicitando logos em PT, EN ou sem idioma (null)
+                // Busca logos em PT, EN ou null (transparente)
                 val imagesUrl = "https://api.themoviedb.org/3/movie/$movieId/images?api_key=$apiKey&include_image_language=pt,en,null"
                 val imagesResponse = URL(imagesUrl).readText()
                 val imagesJson = JSONObject(imagesResponse)
