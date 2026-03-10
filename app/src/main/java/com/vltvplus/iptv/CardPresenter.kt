@@ -14,27 +14,34 @@ class CardPresenter : Presenter() {
             isFocusableInTouchMode = true
             // Estilo Disney+: Apenas imagem, sem barra de texto embaixo
             cardType = ImageCardView.CARD_TYPE_MAIN_ONLY
+            // Cor de fundo enquanto carrega
             setBackgroundColor(ContextCompat.getColor(parent.context, R.color.colorPrimary))
         }
         return ViewHolder(cardView)
     }
 
     override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
-        val movie = item as Movie // Classe que criaremos no próximo passo
-        val cardView = viewHolder.view as ImageCardView
+        // Agora o CardPresenter reconhece o Movie que está no seu HomeFragment
+        if (item is Movie) {
+            val cardView = viewHolder.view as ImageCardView
 
-        // Define o tamanho do Card (Proporção 16:9 estilo Banner)
-        cardView.setMainImageDimensions(313, 176)
+            // Define o tamanho do Card (Proporção 16:9 estilo Disney+)
+            cardView.setMainImageDimensions(313, 176)
 
-        // Lógica do Logo TMDB: Carrega a imagem transparente no lugar do texto
-        // A URL do logo será processada no HomeFragment e passada para cá
-        Glide.with(cardView.context)
-            .load(movie.logoUrl) 
-            .into(cardView.mainImageView)
+            // Carrega o logo transparente do TMDB
+            Glide.with(cardView.context)
+                .load(item.logoUrl)
+                .centerInside() // Mantém a proporção do logo sem esticar
+                .placeholder(R.color.colorPrimary) // Cor de fundo neutra
+                .error(R.color.colorPrimary) // Caso o TMDB falhe
+                .into(cardView.mainImageView)
+        }
     }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
         val cardView = viewHolder.view as ImageCardView
+        // Limpa a imagem para liberar memória da TV
         cardView.mainImage = null
+        Glide.with(cardView.context).clear(cardView.mainImageView)
     }
 }
