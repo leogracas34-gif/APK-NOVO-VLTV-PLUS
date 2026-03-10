@@ -67,24 +67,24 @@ class LoginFragment : Fragment(R.layout.fragment_login) {
 
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    // 1. Corrida de DNS
+                    // 1. Corrida de DNS para encontrar o servidor mais rápido
                     val vencedor = iniciarCorridaDns(dnsList)
                     
                     withContext(Dispatchers.Main) {
                         loginButton.text = "SINCRONIZANDO..."
                     }
 
-                    // 2. Sincronização Obrigatória (O Login ESPERA o banco carregar aqui)
+                    // 2. Sincronização Total (Baixa Filmes e Séries antes de entrar)
                     val repository = IptvRepository(requireContext().applicationContext)
-                    val sucessoSincronizacao = repository.sincronizarFilmes(vencedor, user, pass)
+                    val sucessoSincronizacao = repository.sincronizarConteudoTotal(vencedor, user, pass)
 
                     withContext(Dispatchers.Main) {
                         if (isAdded) { 
                             if (sucessoSincronizacao) {
-                                // 3. Abre a Home apenas com o banco preenchido
+                                // 3. Abre a Home com todo o conteúdo já no banco
                                 abrirTelaHome()
                             } else {
-                                resetarLogin(loginButton, "Erro ao carregar lista.")
+                                resetarLogin(loginButton, "Erro ao sincronizar conteúdo.")
                             }
                         }
                     }
