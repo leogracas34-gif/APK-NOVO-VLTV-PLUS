@@ -3,19 +3,15 @@ package com.vltvplus.iptv
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "series")
+// Atualizado para "series_streams" para bater com o StreamDao e IptvRepository
+@Entity(tableName = "series_streams")
 data class SeriesEntity(
     @PrimaryKey 
-    val seriesId: Int,
+    val series_id: Int, // Alterado para snake_case para bater com o padrão da sua Database V6
     val name: String,
-    val seriesIdString: String?,
     val cover: String?,
-    val plot: String?,
-    val cast: String?,
-    val director: String?,
-    val genre: String?,
-    val releaseDate: String?,
-    val lastModified: String?,
     val rating: String?,
-    val categoryId: String
+    val category_id: String, // Alterado para snake_case
+    val last_modified: Long, // Alterado para Long conforme o erro de Cursor do Room
+    val logo_url: String? = null
 )
