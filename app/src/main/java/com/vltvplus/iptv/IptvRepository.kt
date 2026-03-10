@@ -2,42 +2,38 @@ package com.vltvplus.iptv
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.util.zip.GZIPInputStream
 
 class IptvRepository(private val context: Context) {
 
     private val db = AppDatabase.getDatabase(context)
     private val streamDao = db.streamDao()
-    private val client = OkHttpClient()
-    private val gson = Gson()
 
-    // FUNÇÃO PRINCIPAL: Sincroniza Canais, Filmes e Séries usando o DNS escolhido no Login
+    // FUNÇÃO PRINCIPAL: Ativa a conexão usando o RetrofitClient e sincroniza tudo
     suspend fun sincronizarConteudoTotal(dns: String, user: String, pass: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Se o banco já tem VODs salvos, libera a entrada imediata
+            // Inicializa a API com o DNS digitado pelo usuário
+            val api = RetrofitClient.getClient(dns)
+            
+            // Se o banco já tem dados, entra no app e atualiza em segundo plano
             val temDados = streamDao.getVodCount() > 0
             
             if (temDados) {
-                launch { atualizarTudo(dns, user, pass) }
+                launch { atualizarTudo(api, user, pass) }
                 return@withContext true
             }
 
-            // Carga prioritária simultânea (100 primeiros itens de cada seção)
+            // Carga prioritária simultânea (usando as rotas reais da API)
             val jobs = listOf(
-                async { sincronizarLive(dns, user, pass, priority = true) },
-                async { sincronizarFilmes(dns, user, pass, priority = true) },
-                async { sincronizarSeries(dns, user, pass, priority = true) }
+                async { sincronizarLive(api, user, pass, priority = true) },
+                async { sincronizarFilmes(api, user, pass, priority = true) },
+                async { sincronizarSeries(api, user, pass, priority = true) }
             )
 
             val sucessoInicial = jobs.awaitAll().all { it }
 
             if (sucessoInicial) {
-                launch { atualizarTudo(dns, user, pass) }
+                launch { atualizarTudo(api, user, pass) }
             }
 
             return@withContext sucessoInicial
@@ -47,16 +43,15 @@ class IptvRepository(private val context: Context) {
         }
     }
 
-    private suspend fun atualizarTudo(dns: String, user: String, pass: String) {
-        sincronizarLive(dns, user, pass, priority = false)
-        sincronizarFilmes(dns, user, pass, priority = false)
-        sincronizarSeries(dns, user, pass, priority = false)
+    private suspend fun atualizarTudo(api: IptvService, user: String, pass: String) {
+        sincronizarLive(api, user, pass, priority = false)
+        sincronizarFilmes(api, user, pass, priority = false)
+        sincronizarSeries(api, user, pass, priority = false)
     }
 
-    private suspend fun sincronizarLive(dns: String, user: String, pass: String, priority: Boolean): Boolean {
+    private suspend fun sincronizarLive(api: IptvService, user: String, pass: String, priority: Boolean): Boolean {
         return try {
-            val url = "$dns/player_api.php?username=$user&password=$pass&action=get_live_streams"
-            val data = fetchData<List<IptvLive>>(url) ?: return false
+            val data = api.getLiveStreams(user, pass)
             
             val list = if (priority) data.take(100) else data
             val entities = list.map { 
@@ -74,10 +69,9 @@ class IptvRepository(private val context: Context) {
         } catch (e: Exception) { false }
     }
 
-    private suspend fun sincronizarFilmes(dns: String, user: String, pass: String, priority: Boolean): Boolean {
+    private suspend fun sincronizarFilmes(api: IptvService, user: String, pass: String, priority: Boolean): Boolean {
         return try {
-            val url = "$dns/player_api.php?username=$user&password=$pass&action=get_vod_streams"
-            val data = fetchData<List<IptvMovie>>(url) ?: return false
+            val data = api.getVodStreams(user, pass)
 
             val list = if (priority) data.take(100) else data
             val entities = list.map { 
@@ -97,10 +91,9 @@ class IptvRepository(private val context: Context) {
         } catch (e: Exception) { false }
     }
 
-    private suspend fun sincronizarSeries(dns: String, user: String, pass: String, priority: Boolean): Boolean {
+    private suspend fun sincronizarSeries(api: IptvService, user: String, pass: String, priority: Boolean): Boolean {
         return try {
-            val url = "$dns/player_api.php?username=$user&password=$pass&action=get_series"
-            val data = fetchData<List<IptvSeries>>(url) ?: return false
+            val data = api.getSeries(user, pass)
 
             val list = if (priority) data.take(100) else data
             val entities = list.map { 
@@ -118,23 +111,12 @@ class IptvRepository(private val context: Context) {
             true
         } catch (e: Exception) { false }
     }
-
-    private suspend inline fun <reified T> fetchData(url: String): T? {
-        return try {
-            val request = Request.Builder().url(url).addHeader("Accept-Encoding", "gzip").build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val source = response.body?.source()
-                val inputStream = if (response.header("Content-Encoding") == "gzip") GZIPInputStream(source?.inputStream()) else source?.inputStream()
-                val reader = inputStream?.bufferedReader()
-                val type = object : TypeToken<T>() {}.type
-                gson.fromJson(reader, type)
-            }
-        } catch (e: Exception) { null }
-    }
 }
 
-// Modelos de resposta da API para evitar Redeclaração em outros arquivos
+// ==========================================
+// MODELOS DE DADOS PARA A API
+// ==========================================
+
 data class IptvLive(
     val stream_id: String, 
     val name: String, 
