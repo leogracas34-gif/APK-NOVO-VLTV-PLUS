@@ -22,6 +22,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private val apiKey = "9b73f5dd15b8165b1b57419be2f29128"
     private lateinit var rowsSupportFragment: RowsSupportFragment
+    private lateinit var mainAdapter: ArrayObjectAdapter
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -67,29 +68,34 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             .commit()
 
         val presenterSelector = ListRowPresenter()
-        val adapter = ArrayObjectAdapter(presenterSelector)
+        mainAdapter = ArrayObjectAdapter(presenterSelector)
+        rowsSupportFragment.adapter = mainAdapter
 
-        // Criação das linhas com busca automática de logos via TMDB
-        createSampleRow(adapter, "Lançamentos Imperdíveis", listOf("Avatar", "Inception", "Interstellar"))
-        createSampleRow(adapter, "Filmes de Ação", listOf("John Wick", "Matrix", "Gladiator"))
-        createSampleRow(adapter, "Séries de Sucesso", listOf("The Last of Us", "Breaking Bad", "Succession"))
-
-        rowsSupportFragment.adapter = adapter
+        // Inicia a carga dos dados reais vindos do Banco de Dados Room
+        loadMoviesFromDatabase()
     }
 
-    private fun createSampleRow(mainAdapter: ArrayObjectAdapter, title: String, moviesNames: List<String>) {
-        val cardPresenter = CardPresenter() 
-        val listRowAdapter = ArrayObjectAdapter(cardPresenter)
-        val header = HeaderItem(title)
-        
-        mainAdapter.add(ListRow(header, listRowAdapter))
-
-        // Busca os logos para cada filme desta linha em segundo plano
+    private fun loadMoviesFromDatabase() {
         lifecycleScope.launch(Dispatchers.IO) {
-            moviesNames.forEach { name ->
-                val logo = fetchLogoFromTMDB(name)
+            val db = AppDatabase.getDatabase(requireContext())
+            // Busca todos os filmes salvos (limitando a 15 para o primeiro trilho de teste)
+            val savedMovies = db.movieDao().getMoviesByCategory("0").take(15)
+
+            if (savedMovies.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
-                    listRowAdapter.add(Movie(name, logo))
+                    val listRowAdapter = ArrayObjectAdapter(CardPresenter())
+                    val header = HeaderItem("Conteúdo para Você")
+                    mainAdapter.add(ListRow(header, listRowAdapter))
+
+                    // Para cada filme real, busca o logo no TMDB
+                    savedMovies.forEach { entity ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val logo = fetchLogoFromTMDB(entity.name)
+                            withContext(Dispatchers.Main) {
+                                listRowAdapter.add(Movie(entity.name, logo))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -106,14 +112,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (results.length() > 0) {
                 val movieId = results.getJSONObject(0).getInt("id")
                 
-                // Busca as imagens solicitando logos em PT, EN ou sem idioma (null) para garantir que o card não fique vazio
+                // Busca as imagens solicitando logos em PT, EN ou sem idioma (null)
                 val imagesUrl = "https://api.themoviedb.org/3/movie/$movieId/images?api_key=$apiKey&include_image_language=pt,en,null"
                 val imagesResponse = URL(imagesUrl).readText()
                 val imagesJson = JSONObject(imagesResponse)
                 val logos = imagesJson.getJSONArray("logos")
                 
                 if (logos.length() > 0) {
-                    // Pega o caminho do logo com melhor prioridade de idioma encontrada
                     val filePath = logos.getJSONObject(0).getString("file_path")
                     "https://image.tmdb.org/t/p/original$filePath"
                 } else null
