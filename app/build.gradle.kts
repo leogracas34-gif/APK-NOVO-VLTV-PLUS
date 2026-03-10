@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("kotlin-kapt") // Necessário para o processamento do banco de dados Room
+    id("kotlin-kapt") // Necessário para o processamento do banco de dados Room e Glide
 }
 
 android {
@@ -45,6 +45,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
 
     // Coroutines (Programação Assíncrona para não travar a tela)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
@@ -52,15 +53,21 @@ dependencies {
 
     // OkHttp & Retrofit (Conexão de Rede e API)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // Glide (Biblioteca para carregar os Logos do TMDB e Banners)
+    val glideVersion = "4.16.0"
+    implementation("com.github.bumptech.glide:glide:$glideVersion")
+    kapt("com.github.bumptech.glide:compiler:$glideVersion")
 
     // Media3 (Reprodutor de Vídeo ExoPlayer Moderno)
     val media3Version = "1.2.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
-    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
 
     // Room (Banco de Dados Local Robusto e Veloz)
     val roomVersion = "2.6.1"
@@ -68,6 +75,6 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    // Android TV (Suporte a D-Pad e interface nativa de TV)
+    // Android TV (Suporte a D-Pad e interface nativa de TV Leanback)
     implementation("androidx.leanback:leanback:1.0.0")
 }
