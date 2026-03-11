@@ -12,7 +12,7 @@ import java.util.concurrent.CancellationException
 object DnsManager {
     
     suspend fun findWorkingDns(
-        username: String,
+        username: String, 
         password: String
     ): Pair<String, LoginResponse>? = withContext(Dispatchers.IO) {
         coroutineScope {
@@ -21,8 +21,11 @@ object DnsManager {
                     try {
                         val service = createService(dns)
                         val response = service.getProfile(username, password)
-                        if (response.isSuccessful) {
-                            dns to response.body()
+                        val body = response.body()
+                        
+                        // Garante que o DNS e o Body não são nulos antes de criar o Pair
+                        if (response.isSuccessful && body != null) {
+                            dns to body
                         } else {
                             null
                         }
@@ -32,21 +35,27 @@ object DnsManager {
                 }
             }
             
+            var foundResult: Pair<String, LoginResponse>? = null
+            
             for (job in jobs) {
                 val result = job.await()
                 if (result != null) {
-                    // Cancelar outros jobs
-                    jobs.forEach { it.cancel(CancellationException("DNS encontrado")) }
-                    return@coroutineScope result
+                    foundResult = result
+                    // Cancela as outras tentativas de DNS para economizar recursos
+                    jobs.forEach { if (it != job) it.cancel(CancellationException("DNS encontrado")) }
+                    break
                 }
             }
-            null
+            foundResult
         }
     }
     
     private fun createService(baseUrl: String): XtreamService {
+        // Garante que a URL termine com '/' para o Retrofit não dar erro
+        val url = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        
         return Retrofit.Builder()
-            .baseUrl(baseUrl)
+            .baseUrl(url)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(XtreamService::class.java)
