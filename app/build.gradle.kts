@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.core.ktx)
     implementation(libs.appcompat)
     implementation(libs.material)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.1")
     
     // Media3
     implementation(libs.media3.exoplayer)
