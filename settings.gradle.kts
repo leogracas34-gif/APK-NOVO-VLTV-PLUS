@@ -15,3 +15,10 @@ dependencyResolutionManagement {
 
 rootProject.name = "VLTV+"
 include(":app")
+dependencyResolutionManagement {
+    versionCatalogs {
+        create("libs") {
+            from(files("gradle/libs.versions.toml"))
+        }
+    }
+}
