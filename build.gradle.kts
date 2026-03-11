@@ -1,6 +1,7 @@
 plugins {
-    id("com.android.application") version "8.5.0" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.20" apply false
+    // Usando alias para sincronizar com o seu libs.versions.toml
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
 }
 
 tasks.register<Delete>("clean") {
