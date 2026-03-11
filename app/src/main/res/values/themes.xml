@@ -1,11 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.VLTVPlus" parent="Theme.AppCompat.NoActionBar">
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
-        <item name="android:windowBackground">@color/colorPrimary</item>
-        <item name="android:statusBarColor">@color/colorPrimaryDark</item>
-        <item name="android:navigationBarColor">@color/colorPrimaryDark</item>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.VLTVPlus" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#0F4C81</item>
+        <item name="colorPrimaryVariant">#0D3A6A</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#00BCD4</item>
+        <item name="colorSecondaryVariant">#0097A7</item>
+        <item name="colorOnSecondary">#000000</item>
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
     </style>
 </resources>
