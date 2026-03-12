@@ -2,8 +2,13 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="sharedpref" path="."/>
-        <exclude domain="database" path="."/>
+        
+        <include domain="database" path="."/>
+        <exclude domain="database" path="vltv_plus_ultra_db"/>
+        <exclude domain="database" path="vltv_plus_ultra_db-journal"/>
+        <exclude domain="database" path="vltv_plus_ultra_db-wal"/>
     </cloud-backup>
+
     <device-transfer>
         <include domain="sharedpref" path="."/>
         <include domain="database" path="."/>
