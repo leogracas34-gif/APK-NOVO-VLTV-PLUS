@@ -12,6 +12,7 @@ import com.vltv.plus.R
 import com.vltv.plus.databinding.FragmentLoginBinding
 import com.vltv.plus.ui.home.HomeFragment
 import kotlinx.coroutines.*
+import kotlinx.coroutines.selects.select
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -23,20 +24,11 @@ class LoginFragment : Fragment() {
     private var _binding: FragmentLoginBinding? = null
     private val binding get() = _binding!!
 
-    // Lista de 12 DNS configurada para o disparo Turbo
     private val dnsList = listOf(
-        "http://fibercdn.sbs",
-        "http://tvblack.shop",
-        "http://redeinternadestiny.top",
-        "http://blackstartv.shop",
-        "http://blackdns.shop",
-        "http://blackdeluxe.shop",
-        "http://ranos.sbs",
-        "http://cmdtv.casa",
-        "http://cmdtv.pro",
-        "http://cmdtv.sbs",
-        "http://cmdtv.top",
-        "http://cmdbr.life"
+        "http://fibercdn.sbs", "http://tvblack.shop", "http://redeinternadestiny.top",
+        "http://blackstartv.shop", "http://blackdns.shop", "http://blackdeluxe.shop",
+        "http://ranos.sbs", "http://cmdtv.casa", "http://cmdtv.pro",
+        "http://cmdtv.sbs", "http://cmdtv.top", "http://cmdbr.life"
     )
 
     override fun onCreateView(
@@ -69,15 +61,11 @@ class LoginFragment : Fragment() {
         binding.btnLogin.isEnabled = false
         binding.tvError.text = ""
 
-        // lifecycleScope garante que se o usuário fechar o app, o processo para
         viewLifecycleOwner.lifecycleScope.launch {
             val winner = findFastestDns(username, password)
 
             if (winner != null) {
-                // Salva o DNS vencedor para uso global no app
                 saveDnsPreference(winner)
-                
-                // Navegação instantânea para Home
                 parentFragmentManager.beginTransaction()
                     .replace(R.id.fragment_container, HomeFragment())
                     .addToBackStack(null)
@@ -91,14 +79,16 @@ class LoginFragment : Fragment() {
     }
 
     private suspend fun findFastestDns(user: String, pass: String): String? = withContext(Dispatchers.IO) {
+        val scope = this
         val deferreds = dnsList.map { url ->
-            async {
+            scope.async {
                 try {
                     val retrofit = Retrofit.Builder()
                         .baseUrl(if (url.endsWith("/")) url else "$url/")
                         .addConverterFactory(GsonConverterFactory.create())
                         .client(OkHttpClient.Builder()
-                            .connectTimeout(5, TimeUnit.SECONDS) // Timeout curto para ser rápido
+                            .connectTimeout(7, TimeUnit.SECONDS)
+                            .readTimeout(7, TimeUnit.SECONDS)
                             .build())
                         .build()
 
@@ -114,18 +104,20 @@ class LoginFragment : Fragment() {
             }
         }
 
-        // Aguarda o primeiro resultado positivo
-        var fastestUrl: String? = null
-        for (deferred in deferreds) {
-            val result = deferred.await()
-            if (result != null) {
-                fastestUrl = result
-                // Cancela todos os outros DNS imediatamente
-                deferreds.forEach { it.cancel() }
-                break
+        // Lógica de corrida: o primeiro que não for nulo vence
+        val winner = select<String?> {
+            deferreds.forEach { deferred ->
+                deferred.onAwait { result -> result }
             }
+            // Timeout de segurança para não travar a tela
+            launch {
+                delay(8000)
+            }.invokeOnCompletion { }
         }
-        fastestUrl
+
+        // Cancela todos os testes restantes imediatamente
+        deferreds.forEach { it.cancel() }
+        winner
     }
 
     private fun saveDnsPreference(dns: String) {
