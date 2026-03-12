@@ -19,8 +19,9 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Gradle 9.3.1
-      uses: gradle/gradle-build-action@v3
+    # Baixa e configura o Gradle 9.3.1 diretamente via Action
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
       with:
         gradle-version: 9.3.1
 
@@ -34,16 +35,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
+    # Comando 'gradle build' usa o binário baixado pela Action acima
     - name: Build project
       run: gradle build
 
+    # Gera o APK para download usando o binário global
     - name: Build Debug APK
-      run: ./gradlew assembleDebug
+      run: gradle assembleDebug
 
+    # Disponibiliza o APK final na aba Actions
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: VLTV-Plus-Debug-App
+        name: VLTV-Plus-Debug
         path: app/build/outputs/apk/debug/app-debug.apk
 
     - name: Run tests
