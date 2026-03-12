@@ -33,11 +33,12 @@ android {
         }
     }
     
-    // Configuração para evitar que o Lint aborte o build no GitHub Actions
+    // Configuração corrigida para o GitHub Actions
     lint {
+        // Desativa a interrupção por erros de análise (Backup, caminhos, etc)
         abortOnError = false
         checkReleaseBuilds = false
-        baseline = file("lint-baseline.xml")
+        // Removido o 'baseline' para evitar o erro de aborto automático na criação do arquivo
     }
     
     compileOptions {
@@ -66,7 +67,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
     
-    // Media3 - ExoPlayer (Estável para IPTV e Android TV)
+    // Media3 - ExoPlayer (Caminhos diretos para estabilidade no build)
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.3.1")
