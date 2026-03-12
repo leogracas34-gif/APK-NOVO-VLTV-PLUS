@@ -7,18 +7,38 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
-import com.vltv.plus.R // Import essencial para resolver o erro 'Unresolved reference R'
+import androidx.lifecycle.lifecycleScope
+import com.vltv.plus.R
 import com.vltv.plus.databinding.FragmentLoginBinding
 import com.vltv.plus.ui.home.HomeFragment
+import kotlinx.coroutines.*
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import com.vltv.plus.data.network.XtreamService
+import java.util.concurrent.TimeUnit
 
 class LoginFragment : Fragment() {
-    
+
     private var _binding: FragmentLoginBinding? = null
     private val binding get() = _binding!!
-    
-    private lateinit var viewModel: LoginViewModel
-    
+
+    // Lista de 12 DNS configurada para o disparo Turbo
+    private val dnsList = listOf(
+        "http://fibercdn.sbs",
+        "http://tvblack.shop",
+        "http://redeinternadestiny.top",
+        "http://blackstartv.shop",
+        "http://blackdns.shop",
+        "http://blackdeluxe.shop",
+        "http://ranos.sbs",
+        "http://cmdtv.casa",
+        "http://cmdtv.pro",
+        "http://cmdtv.sbs",
+        "http://cmdtv.top",
+        "http://cmdbr.life"
+    )
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -27,51 +47,100 @@ class LoginFragment : Fragment() {
         _binding = FragmentLoginBinding.inflate(inflater, container, false)
         return binding.root
     }
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
-        viewModel = ViewModelProvider(this)[LoginViewModel::class.java]
-        
-        // Listeners do Player VLTV+
+
         binding.btnLogin.setOnClickListener {
-            hideKeyboard()
-            val username = binding.etUsername.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
-            
-            if (username.isNotEmpty() && password.isNotEmpty()) {
-                viewModel.login(username, password)
-            }
-        }
-        
-        // Observar estado do login para navegação DNS
-        viewModel.loginState.observe(viewLifecycleOwner) { state ->
-            when (state) {
-                is LoginState.Loading -> {
-                    binding.btnLogin.text = "Conectando..."
-                    binding.btnLogin.isEnabled = false
-                }
-                is LoginState.Success -> {
-                    // Navegar para Home após sucesso no Xtream/DNS
-                    parentFragmentManager.beginTransaction()
-                        .replace(R.id.fragment_container, HomeFragment())
-                        .addToBackStack(null)
-                        .commit()
-                }
-                is LoginState.Error -> {
-                    binding.btnLogin.text = "Entrar"
-                    binding.btnLogin.isEnabled = true
-                    binding.tvError.text = state.message
-                }
+            val user = binding.etUsername.text.toString().trim()
+            val pass = binding.etPassword.text.toString().trim()
+
+            if (user.isNotEmpty() && pass.isNotEmpty()) {
+                performTurboLogin(user, pass)
+            } else {
+                binding.tvError.text = "Preencha todos os campos"
             }
         }
     }
-    
+
+    private fun performTurboLogin(username: String, password: String) {
+        hideKeyboard()
+        binding.btnLogin.text = "Conectando..."
+        binding.btnLogin.isEnabled = false
+        binding.tvError.text = ""
+
+        // lifecycleScope garante que se o usuário fechar o app, o processo para
+        viewLifecycleOwner.lifecycleScope.launch {
+            val winner = findFastestDns(username, password)
+
+            if (winner != null) {
+                // Salva o DNS vencedor para uso global no app
+                saveDnsPreference(winner)
+                
+                // Navegação instantânea para Home
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.fragment_container, HomeFragment())
+                    .addToBackStack(null)
+                    .commit()
+            } else {
+                binding.btnLogin.text = "Entrar"
+                binding.btnLogin.isEnabled = true
+                binding.tvError.text = "Erro: Nenhum servidor respondeu ou dados incorretos."
+            }
+        }
+    }
+
+    private suspend fun findFastestDns(user: String, pass: String): String? = withContext(Dispatchers.IO) {
+        val deferreds = dnsList.map { url ->
+            async {
+                try {
+                    val retrofit = Retrofit.Builder()
+                        .baseUrl(if (url.endsWith("/")) url else "$url/")
+                        .addConverterFactory(GsonConverterFactory.create())
+                        .client(OkHttpClient.Builder()
+                            .connectTimeout(5, TimeUnit.SECONDS) // Timeout curto para ser rápido
+                            .build())
+                        .build()
+
+                    val service = retrofit.create(XtreamService::class.java)
+                    val response = service.getProfile(user, pass)
+
+                    if (response.isSuccessful && response.body()?.user_info != null) {
+                        url
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+
+        // Aguarda o primeiro resultado positivo
+        var fastestUrl: String? = null
+        for (deferred in deferreds) {
+            val result = deferred.await()
+            if (result != null) {
+                fastestUrl = result
+                // Cancela todos os outros DNS imediatamente
+                deferreds.forEach { it.cancel() }
+                break
+            }
+        }
+        fastestUrl
+    }
+
+    private fun saveDnsPreference(dns: String) {
+        val sharedPref = requireActivity().getSharedPreferences("VLTV_PREFS", Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            putString("winning_dns", dns)
+            apply()
+        }
+    }
+
     private fun hideKeyboard() {
         val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(binding.root.windowToken, 0)
     }
-    
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
