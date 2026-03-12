@@ -59,11 +59,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
     
-    // Media3 - ExoPlayer (Alta performance para IPTV)
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.ui)
-    implementation(libs.media3.datasource.okhttp)
-    implementation(libs.media3.session)
+    // Media3 - ExoPlayer (Caminhos diretos para evitar erro 'Unresolved reference')
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.3.1")
+    implementation("androidx.media3:media3-session:1.3.1")
     
     // Room - Database Robusta com suporte a FTS4
     implementation(libs.room.runtime)
@@ -82,7 +82,7 @@ dependencies {
     
     // Glide - Carregamento instantâneo das logos do TMDB
     implementation(libs.glide)
-    ksp("github.com/bumptech/glide:compiler:4.16.0") // KSP para o Glide
+    ksp("com.github.bumptech.glide:ksp:4.16.0") // Corrigido formato KSP para Glide
     
     // Componentes de Navegação (ViewPager2 para o Carrossel Infinito)
     implementation("androidx.viewpager2:viewpager2:1.1.0")
