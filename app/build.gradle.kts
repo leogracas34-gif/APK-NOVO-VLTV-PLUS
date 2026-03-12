@@ -24,7 +24,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true // Ativado para melhor performance no lançamento
+            isShrinkResources = true // Remove recursos não utilizados
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -47,32 +48,46 @@ android {
 }
 
 dependencies {
+    // Core e UI Base
     implementation(libs.core.ktx)
     implementation(libs.appcompat)
     implementation(libs.material)
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.1")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     
-    // Media3
+    // Lifecycle e ViewModel (Essencial para o HomeViewModel)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.1")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
+    
+    // Media3 - ExoPlayer (Alta performance para IPTV)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.media3.datasource.okhttp)
+    implementation(libs.media3.session)
     
-    // Room
+    // Room - Database Robusta com suporte a FTS4
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     
-    // Retrofit + OkHttp
+    // Retrofit + OkHttp com suporte a GZip e Interceptadores
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     
-    // Coroutines
+    // Coroutines - Processamento veloz em segundo plano
     implementation(libs.coroutines.android)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     
-    // Glide
+    // Glide - Carregamento instantâneo das logos do TMDB
     implementation(libs.glide)
+    ksp("github.com/bumptech/glide:compiler:4.16.0") // KSP para o Glide
     
+    // Componentes de Navegação (ViewPager2 para o Carrossel Infinito)
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
+    
+    // Testes
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
