@@ -57,12 +57,16 @@ class LoginFragment : Fragment() {
 
     private fun performTurboLogin(username: String, password: String) {
         hideKeyboard()
+        // Feedback imediato na UI
         binding.btnLogin.text = "Conectando..."
         binding.btnLogin.isEnabled = false
         binding.tvError.text = ""
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            val winner = findFastestDns(username, password)
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+            // A busca roda em IO mas retorna o resultado para a Main Thread
+            val winner = withContext(Dispatchers.IO) {
+                findFastestDns(username, password)
+            }
 
             if (winner != null) {
                 saveDnsPreference(winner)
@@ -73,23 +77,24 @@ class LoginFragment : Fragment() {
             } else {
                 binding.btnLogin.text = "Entrar"
                 binding.btnLogin.isEnabled = true
-                binding.tvError.text = "Erro: Nenhum servidor respondeu ou dados incorretos."
+                binding.tvError.text = "Erro: Servidores indisponíveis ou dados incorretos."
             }
         }
     }
 
-    private suspend fun findFastestDns(user: String, pass: String): String? = withContext(Dispatchers.IO) {
-        val scope = this
+    private suspend fun findFastestDns(user: String, pass: String): String? = coroutineScope {
         val deferreds = dnsList.map { url ->
-            scope.async {
+            async(Dispatchers.IO) {
                 try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(5, TimeUnit.SECONDS)
+                        .readTimeout(5, TimeUnit.SECONDS)
+                        .build()
+
                     val retrofit = Retrofit.Builder()
                         .baseUrl(if (url.endsWith("/")) url else "$url/")
                         .addConverterFactory(GsonConverterFactory.create())
-                        .client(OkHttpClient.Builder()
-                            .connectTimeout(7, TimeUnit.SECONDS)
-                            .readTimeout(7, TimeUnit.SECONDS)
-                            .build())
+                        .client(client)
                         .build()
 
                     val service = retrofit.create(XtreamService::class.java)
@@ -104,28 +109,21 @@ class LoginFragment : Fragment() {
             }
         }
 
-        // Lógica de corrida: o primeiro que não for nulo vence
-        val winner = select<String?> {
+        // Seleciona o primeiro DNS que retornar um valor não nulo
+        val result = select<String?> {
             deferreds.forEach { deferred ->
-                deferred.onAwait { result -> result }
+                deferred.onAwait { it }
             }
-            // Timeout de segurança para não travar a tela
-            launch {
-                delay(8000)
-            }.invokeOnCompletion { }
         }
-
-        // Cancela todos os testes restantes imediatamente
+        
+        // Cancela todas as outras tentativas pendentes
         deferreds.forEach { it.cancel() }
-        winner
+        result
     }
 
     private fun saveDnsPreference(dns: String) {
         val sharedPref = requireActivity().getSharedPreferences("VLTV_PREFS", Context.MODE_PRIVATE)
-        with(sharedPref.edit()) {
-            putString("winning_dns", dns)
-            apply()
-        }
+        sharedPref.edit().putString("winning_dns", dns).apply()
     }
 
     private fun hideKeyboard() {
