@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.vltv.plus.R // Import essencial para resolver o erro 'Unresolved reference R'
 import com.vltv.plus.databinding.FragmentLoginBinding
 import com.vltv.plus.ui.home.HomeFragment
 
@@ -32,7 +33,7 @@ class LoginFragment : Fragment() {
         
         viewModel = ViewModelProvider(this)[LoginViewModel::class.java]
         
-        // Listeners
+        // Listeners do Player VLTV+
         binding.btnLogin.setOnClickListener {
             hideKeyboard()
             val username = binding.etUsername.text.toString().trim()
@@ -43,7 +44,7 @@ class LoginFragment : Fragment() {
             }
         }
         
-        // Observar estado do login
+        // Observar estado do login para navegação DNS
         viewModel.loginState.observe(viewLifecycleOwner) { state ->
             when (state) {
                 is LoginState.Loading -> {
@@ -51,7 +52,7 @@ class LoginFragment : Fragment() {
                     binding.btnLogin.isEnabled = false
                 }
                 is LoginState.Success -> {
-                    // Navegar para Home
+                    // Navegar para Home após sucesso no Xtream/DNS
                     parentFragmentManager.beginTransaction()
                         .replace(R.id.fragment_container, HomeFragment())
                         .addToBackStack(null)
