@@ -48,7 +48,7 @@ class LoginFragment : Fragment() {
             val pass = binding.etPassword.text.toString().trim()
 
             if (user.isNotEmpty() && pass.isNotEmpty()) {
-                performTurboLogin(user, pass)
+                performTurboLogin(username = user, password = pass)
             } else {
                 binding.tvError.text = "Preencha todos os campos"
             }
@@ -57,19 +57,18 @@ class LoginFragment : Fragment() {
 
     private fun performTurboLogin(username: String, password: String) {
         hideKeyboard()
-        // Feedback imediato na UI
         binding.btnLogin.text = "Conectando..."
         binding.btnLogin.isEnabled = false
         binding.tvError.text = ""
 
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-            // A busca roda em IO mas retorna o resultado para a Main Thread
-            val winner = withContext(Dispatchers.IO) {
+            // Agora recebemos o resultado ou a mensagem de erro técnica
+            val result = withContext(Dispatchers.IO) {
                 findFastestDns(username, password)
             }
 
-            if (winner != null) {
-                saveDnsPreference(winner)
+            if (result.winner != null) {
+                saveDnsPreference(result.winner)
                 parentFragmentManager.beginTransaction()
                     .replace(R.id.fragment_container, HomeFragment())
                     .addToBackStack(null)
@@ -77,18 +76,24 @@ class LoginFragment : Fragment() {
             } else {
                 binding.btnLogin.text = "Entrar"
                 binding.btnLogin.isEnabled = true
-                binding.tvError.text = "Erro: Servidores indisponíveis ou dados incorretos."
+                // Exibe o erro técnico para você saber por que não conectou
+                binding.tvError.text = "Erro: ${result.lastErrorMessage}"
             }
         }
     }
 
-    private suspend fun findFastestDns(user: String, pass: String): String? = coroutineScope {
+    // Classe auxiliar para capturar o vencedor e o erro ao mesmo tempo
+    data class LoginResult(val winner: String? = null, val lastErrorMessage: String? = null)
+
+    private suspend fun findFastestDns(user: String, pass: String): LoginResult = coroutineScope {
+        var errorLog = "Nenhum servidor respondeu"
+        
         val deferreds = dnsList.map { url ->
             async(Dispatchers.IO) {
                 try {
                     val client = OkHttpClient.Builder()
-                        .connectTimeout(5, TimeUnit.SECONDS)
-                        .readTimeout(5, TimeUnit.SECONDS)
+                        .connectTimeout(7, TimeUnit.SECONDS)
+                        .readTimeout(7, TimeUnit.SECONDS)
                         .build()
 
                     val retrofit = Retrofit.Builder()
@@ -102,23 +107,33 @@ class LoginFragment : Fragment() {
 
                     if (response.isSuccessful && response.body()?.user_info != null) {
                         url
-                    } else null
+                    } else {
+                        "Falha: ${response.code()} em $url"
+                    }
                 } catch (e: Exception) {
-                    null
+                    "Erro: ${e.message} em $url"
                 }
             }
         }
 
-        // Seleciona o primeiro DNS que retornar um valor não nulo
-        val result = select<String?> {
+        val fastResult = select<String?> {
             deferreds.forEach { deferred ->
-                deferred.onAwait { it }
+                deferred.onAwait { res ->
+                    if (res != null && !res.startsWith("Falha") && !res.startsWith("Erro")) res else null
+                }
             }
+            // Timeout de segurança caso nenhum responda rápido
+            launch { delay(8000) }.invokeOnCompletion { }
         }
-        
-        // Cancela todas as outras tentativas pendentes
+
+        // Se falhou, pegamos a mensagem do primeiro para debugar
+        if (fastResult == null) {
+            val firstResponse = deferreds.first().await()
+            errorLog = firstResponse ?: "Servidores offline"
+        }
+
         deferreds.forEach { it.cancel() }
-        result
+        LoginResult(winner = fastResult, lastErrorMessage = errorLog)
     }
 
     private fun saveDnsPreference(dns: String) {
