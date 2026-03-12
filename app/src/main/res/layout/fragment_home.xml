@@ -3,42 +3,95 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#040714"> <androidx.cardview.widget.CardView
-        android:id="@+id/banner_destaque"
+    android:background="#040714">
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/banner_container"
         android:layout_width="0dp"
-        android:layout_height="220dp"
+        android:layout_height="320dp"
         android:layout_margin="16dp"
+        app:cardBackgroundColor="#000000"
         app:cardCornerRadius="12dp"
-        app:cardElevation="8dp"
+        app:cardElevation="10dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <ImageView
-            android:id="@+id/iv_banner"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="centerCrop"
-            android:src="@drawable/placeholder_banner" /> </androidx.cardview.widget.CardView>
+            android:layout_height="match_parent">
+
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/viewPagerBanner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/gradient_banner_overlay" />
+
+            <LinearLayout
+                android:layout_width="300dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:layout_marginBottom="24dp"
+                android:orientation="vertical"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent">
+
+                <ImageView
+                    android:id="@+id/iv_movie_logo"
+                    android:layout_width="180dp"
+                    android:layout_height="80dp"
+                    android:scaleType="fitStart" />
+
+                <TextView
+                    android:id="@+id/tv_banner_description"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:ellipsize="end"
+                    android:maxLines="3"
+                    android:text="Carregando detalhes do lançamento..."
+                    android:textColor="#CCCCCC"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_watch_now"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="#F9F9F9"
+                    android:text="ASSISTIR"
+                    android:textColor="#040714"
+                    android:textStyle="bold"
+                    app:cornerRadius="4dp"
+                    app:icon="@android:drawable/ic_media_play"
+                    app:iconTint="#040714" />
+
+            </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.cardview.widget.CardView>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="16dp"
         android:gravity="center"
         android:orientation="horizontal"
         android:padding="8dp"
-        app:layout_constraintTop_toBottomOf="@id/banner_destaque">
+        app:layout_constraintTop_toBottomOf="@id/banner_container">
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardLiveTv"
-            android:layout_width="120dp"
-            android:layout_height="160dp"
+            android:layout_width="140dp"
+            android:layout_height="180dp"
             android:layout_margin="8dp"
             android:clickable="true"
             android:focusable="true"
             app:cardBackgroundColor="#1A1D29"
-            app:cardCornerRadius="8dp"
+            app:cardCornerRadius="10dp"
             app:strokeColor="#30333E"
             app:strokeWidth="1dp">
             
@@ -48,18 +101,19 @@
                 android:gravity="center"
                 android:text="TV AO VIVO"
                 android:textColor="#F9F9F9"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardMovies"
-            android:layout_width="120dp"
-            android:layout_height="160dp"
+            android:layout_width="140dp"
+            android:layout_height="180dp"
             android:layout_margin="8dp"
             android:clickable="true"
             android:focusable="true"
             app:cardBackgroundColor="#1A1D29"
-            app:cardCornerRadius="8dp"
+            app:cardCornerRadius="10dp"
             app:strokeColor="#30333E"
             app:strokeWidth="1dp">
 
@@ -69,18 +123,19 @@
                 android:gravity="center"
                 android:text="FILMES"
                 android:textColor="#F9F9F9"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardSeries"
-            android:layout_width="120dp"
-            android:layout_height="160dp"
+            android:layout_width="140dp"
+            android:layout_height="180dp"
             android:layout_margin="8dp"
             android:clickable="true"
             android:focusable="true"
             app:cardBackgroundColor="#1A1D29"
-            app:cardCornerRadius="8dp"
+            app:cardCornerRadius="10dp"
             app:strokeColor="#30333E"
             app:strokeWidth="1dp">
 
@@ -90,6 +145,7 @@
                 android:gravity="center"
                 android:text="SÉRIES"
                 android:textColor="#F9F9F9"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </com.google.android.material.card.MaterialCardView>
 
